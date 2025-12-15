@@ -1,0 +1,29 @@
+[Unit]
+Description=IoT Edge Data Collector Service
+# Osigurava da se ovaj servis pokrene tek NAKON što se Mosquitto pokrene
+After=network.target mosquitto.service
+Requires=mosquitto.service
+
+[Service]
+# Puna putanja do Python interpretera i skripte unutar QEMU Imagea
+# S obzirom na to da smo skriptu instalirali u /usr/local/bin/
+ExecStart=/usr/bin/python3 /usr/local/bin/data_collector.py
+
+# Postavljanje radnog direktorija (korisno za SQLite bazu podataka)
+WorkingDirectory=/
+
+# Konfiguracija izlaza za debugging - šalje izlaz u systemd journal
+StandardOutput=journal
+StandardError=journal
+
+# Osigurava da se servis pokuša restartati ako dođe do neočekivanog pada
+Restart=always
+
+# Pokreće se kao root korisnik (uobičajeno za Yocto)
+User=root 
+#ProtectSystem=full
+#ProtectHome=true
+
+[Install]
+# Servis će se automatski pokrenuti kada sustav dosegne multi-user state
+WantedBy=multi-user.target
