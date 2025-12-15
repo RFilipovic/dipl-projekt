@@ -1,0 +1,7 @@
+source oe-init-build-env
+bitbake diplomski-image // if the image is not built yet
+
+runqemu qemux86-64 nographic kvm slirp
+
+//on your host pc open a terminal
+ssh root@localhost -p 2222
