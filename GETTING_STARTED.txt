@@ -1,7 +1,7 @@
 source oe-init-build-env
 bitbake diplomski-image // if the image is not built yet
 
-runqemu qemux86-64 nographic kvm slirp
+runqemu qemux86-64 nographic kvm slirp qemuparams="-net nic,model=e1000 -net user,hostfwd=tcp::18830-:1883"
 
 //on your host pc open a terminal
 ssh root@localhost -p 2222
