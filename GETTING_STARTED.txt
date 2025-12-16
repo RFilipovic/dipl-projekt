@@ -31,3 +31,24 @@ python3 sensor_simulator.py --ssh-tunnel --sensor humidity --simulate --duration
 
 // OPCIJA 4: Direktna konekcija (bez tunela, ako je mapiranje dostupno)
 python3 sensor_simulator.py --broker localhost --port 1883 --sensor temperature --value 25.5
+
+// ispis podataka iz sqlite baze
+sqlite3 /usr/local/bin/iot_data.db "SELECT * FROM sensor_readings"
+
+//===========================================================================================
+// VENV SETUP
+# 1. Kloniraj repozitorij
+git clone https://github.com/RFilipovic/dipl-projekt.git
+cd dipl-projekt
+
+# 2. Kreiraj virtuelni environment
+python3 -m venv .venv
+
+# 3. Aktiviraj virtuelni environment
+source .venv/bin/activate
+
+# 4. Instaliraj Python pakete
+pip install paho-mqtt
+
+# 5. Instaliraj mosquitto-clients (za testiranje sa komandnom linijom)
+sudo apt-get install mosquitto-clients
