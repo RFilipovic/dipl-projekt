@@ -10,7 +10,7 @@ Requires=mosquitto.service
 ExecStart=/usr/bin/python3 /usr/local/bin/data_collector.py
 
 # Postavljanje radnog direktorija (korisno za SQLite bazu podataka)
-WorkingDirectory=/
+WorkingDirectory=/usr/local/bin/
 
 # Konfiguracija izlaza za debugging - šalje izlaz u systemd journal
 StandardOutput=journal
