@@ -1,7 +1,33 @@
 source oe-init-build-env
-bitbake diplomski-image // if the image is not built yet
+bitbake diplomski-image // ako slika nije jos izgradena
 
 runqemu qemux86-64 nographic kvm slirp qemuparams="-net nic,model=e1000 -net user,hostfwd=tcp::18830-:1883"
 
-//on your host pc open a terminal
+//spoji se iz drugog terminala pomocu ssh na yoctoo
 ssh root@localhost -p 2222
+
+//prati logove - 2. terminal
+journalctl -u data-collector -f
+
+//salji podatke - 3. terminal
+cd /home/rene/Documents/projekt-dipl/poky
+source .venv/bin/activate
+
+// OPCIJA 1: Jedna temperatura sa SSH tunnelom
+python3 sensor_simulator.py \
+  --ssh-tunnel \
+  --sensor temperature \
+  --value 25.5
+
+// OPCIJA 2: Kontinuirana simulacija (10 čitanja, svake 1 sekunde)
+python3 sensor_simulator.py \
+  --ssh-tunnel \
+  --sensor temperature \
+  --simulate --duration 10 --interval 1 --base 25 --variance 3
+
+// OPCIJA 3: Više senzora istovremeno (u različitim terminalima)
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --simulate --duration 30 --interval 2 --base 25 --variance 5
+python3 sensor_simulator.py --ssh-tunnel --sensor humidity --simulate --duration 30 --interval 2 --base 55 --variance 10
+
+// OPCIJA 4: Direktna konekcija (bez tunela, ako je mapiranje dostupno)
+python3 sensor_simulator.py --broker localhost --port 1883 --sensor temperature --value 25.5
