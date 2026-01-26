@@ -2,7 +2,6 @@
 *.pyo
 /*.patch
 /.repo/
-/build*/
 pyshtables.py
 pstage/
 scripts/oe-git-proxy-socks
@@ -37,3 +36,14 @@ downloads/
 sstate-cache/
 toaster.sqlite
 .vscode/
+
+# Build directories - specific order matters!
+/build/downloads/
+/build/sstate-cache/
+/build/tmp/
+/build/cache/
+# Allow config files
+!/build/conf/
+/build/conf/*
+!/build/conf/local.conf
+!/build/conf/bblayers.conf
