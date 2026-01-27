@@ -1,0 +1,15 @@
+[Unit]
+Description=IoT Dashboard Web Server
+After=network.target mosquitto.service data-collector.service
+Wants=mosquitto.service data-collector.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/bin/iot-dashboard.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,7 @@ IMAGE_INSTALL:append = " \
     mosquitto-clients \
     python3 \
     python3-paho-mqtt \
+    python3-flask \
     python3-pip \
     python3-sqlite3 \
     sqlite3 \
@@ -24,6 +25,7 @@ IMAGE_INSTALL:append = " \
     systemd \
     systemd-analyze \
     data-collector \
+    iot-dashboard \
     "
 
 IMAGE_ROOTFS_SIZE ?= "2097152"
