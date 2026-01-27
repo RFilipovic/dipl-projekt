@@ -145,3 +145,14 @@ systemctl status data-collector
 
 # Prati logove
 journalctl -u data-collector -f
+
+
+ qemu-system-x86_64 \
+  -drive file=/home/rene/Documents/projekt-dipl/dipl-projekt/build/tmp/deploy/images/qemux86-64/diplomski-image-qemux86-64.rootfs.ext4,if=virtio,format=raw \
+  -kernel /home/rene/Documents/projekt-dipl/dipl-projekt/build/tmp/deploy/images/qemux86-64/bzImage \
+  -append 'root=/dev/vda rw console=ttyS0' \
+  -netdev user,id=net0,hostfwd=tcp::2222-:22,hostfwd=tcp::8080-:8080,hostfwd=tcp::18830-:1883 \
+  -device virtio-net-pci,netdev=net0 \
+  -nographic -m 512 -smp 2 -enable-kvm
+
+  sqlite3 /usr/local/bin/iot_data.db "DELETE FROM sensor_readings"

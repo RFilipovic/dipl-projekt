@@ -313,25 +313,31 @@ def get_sensors():
     with db_lock:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        # Get latest reading for each sensor
+        # Get latest reading for each topic
         cursor.execute("""
-            SELECT sensor_id, sensor_type, value, timestamp
+            SELECT topic, value, measurement_time
             FROM sensor_readings
             WHERE id IN (
-                SELECT MAX(id) FROM sensor_readings GROUP BY sensor_id
+                SELECT MAX(id) FROM sensor_readings GROUP BY topic
             )
-            ORDER BY timestamp DESC
+            ORDER BY measurement_time DESC
         """)
         rows = cursor.fetchall()
         conn.close()
         
         sensors = {}
         for row in rows:
-            sensors[row[0]] = {
-                'id': row[0],
-                'type': row[1],
-                'value': row[2],
-                'timestamp': row[3]
+            topic = row[0]  # e.g., "sensors/temperature"
+            # Extract sensor type from topic
+            parts = topic.split('/')
+            sensor_type = parts[-1] if len(parts) > 1 else 'unknown'
+            sensor_id = f"{sensor_type}-sensor"
+            
+            sensors[sensor_id] = {
+                'id': sensor_id,
+                'type': sensor_type,
+                'value': row[1],
+                'timestamp': row[2]
             }
         
         return jsonify({'sensors': sensors})
@@ -343,9 +349,9 @@ def get_readings():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT sensor_id, sensor_type, value, timestamp
+            SELECT topic, value, measurement_time
             FROM sensor_readings
-            ORDER BY timestamp DESC
+            ORDER BY measurement_time DESC
             LIMIT 20
         """)
         rows = cursor.fetchall()
@@ -353,11 +359,16 @@ def get_readings():
         
         readings = []
         for row in rows:
+            topic = row[0]
+            parts = topic.split('/')
+            sensor_type = parts[-1] if len(parts) > 1 else 'unknown'
+            sensor_id = f"{sensor_type}-sensor"
+            
             readings.append({
-                'sensor_id': row[0],
-                'sensor_type': row[1],
-                'value': row[2],
-                'timestamp': row[3]
+                'sensor_id': sensor_id,
+                'sensor_type': sensor_type,
+                'value': row[1],
+                'timestamp': row[2]
             })
         
         return jsonify({'readings': readings})
