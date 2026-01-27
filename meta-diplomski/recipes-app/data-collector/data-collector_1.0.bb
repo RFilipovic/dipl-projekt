@@ -7,6 +7,7 @@ LICENSE = "CLOSED"
 SRC_URI = " \
     file://data_collector.py \
     file://data-collector.service \
+    file://command_sender.py \
 "
 
 # Yocto varijabla koja govori systemd-u da automatski omogući servis pri bootanju
@@ -23,17 +24,19 @@ inherit systemd
 # Explicitno definirajte SVE datoteke koje nisu u standardnim putanjama (poput /usr/local/)
 FILES:${PN} = " \
     /usr/local/bin/data_collector.py \
+    /usr/local/bin/command_sender.py \
     /usr/local/bin/ \
     /usr/local/ \
     ${systemd_system_unitdir}/data-collector.service \
 "
 
 do_install() {
-    # 1. Instaliraj Python skriptu:
-    install -d ${D}/usr/local/bin/    # <-- Umjesto ${bindir}
+    # 1. Instaliraj Python skripte:
+    install -d ${D}/usr/local/bin/
     install -m 0755 ${WORKDIR}/data_collector.py ${D}/usr/local/bin/data_collector.py
+    install -m 0755 ${WORKDIR}/command_sender.py ${D}/usr/local/bin/command_sender.py
     
-    # 2. Instaliraj systemd servisnu datoteku: (ostaje isto)
+    # 2. Instaliraj systemd servisnu datoteku:
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/data-collector.service ${D}${systemd_system_unitdir}
 }

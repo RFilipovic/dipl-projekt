@@ -16,15 +16,21 @@ import os
 from datetime import datetime
 
 class SensorSimulator:
-    def __init__(self, broker_host, broker_port, sensor_type, topic_prefix="sensors", ssh_tunnel=False, ssh_host="localhost", ssh_port=2222, ssh_user="root"):
+    def __init__(self, broker_host, broker_port, sensor_type, sensor_id=None, topic_prefix="sensors", ssh_tunnel=False, ssh_host="localhost", ssh_port=2222, ssh_user="root", listen_commands=False):
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.sensor_type = sensor_type
+        self.sensor_id = sensor_id or sensor_type  # Unique sensor ID
         self.topic_prefix = topic_prefix
         self.client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
+        self.client.on_message = self.on_message
         self.connected = False
+        self.listen_commands = listen_commands
+        
+        # Command handling
+        self.command_active = False
         
         # SSH Tunnel settings
         self.ssh_tunnel = ssh_tunnel
@@ -38,12 +44,61 @@ class SensorSimulator:
         if reason_code == 0:
             print(f"[✓] Connected to MQTT broker at {self.broker_host}:{self.broker_port}")
             self.connected = True
+            
+            # Subscribe to commands if enabled
+            if self.listen_commands:
+                # Subscribe to sensor-specific and broadcast commands
+                client.subscribe(f"commands/{self.sensor_id}")
+                client.subscribe(f"commands/all")
+                print(f"[✓] Subscribed to commands/{self.sensor_id} and commands/all")
         else:
             print(f"[✗] Failed to connect, return code {reason_code}")
             
     def on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
         print(f"[✗] Disconnected from broker")
         self.connected = False
+        
+    def on_message(self, client, userdata, msg):
+        """Handle incoming command messages"""
+        try:
+            command_data = json.loads(msg.payload.decode())
+            print(f"\n[📩] Received command on {msg.topic}: {command_data}")
+            
+            command = command_data.get('command')
+            
+            if command == 'measure':
+                count = command_data.get('count', 10)
+                interval = command_data.get('interval', 1)
+                base = command_data.get('base', 25)
+                variance = command_data.get('variance', 5)
+                
+                print(f"[▶] Starting measurement: {count} readings, interval {interval}s")
+                self.command_active = True
+                
+                # Execute measurement
+                for i in range(count):
+                    if not self.command_active:
+                        print("[⊥] Measurement stopped")
+                        break
+                    value = base + random.uniform(-variance, variance)
+                    self.send_sensor_data(round(value, 2))
+                    if i < count - 1:  # Don't sleep after last reading
+                        time.sleep(interval)
+                
+                self.command_active = False
+                print(f"[✓] Measurement complete: {count} readings sent")
+                
+            elif command == 'stop':
+                print(f"[⊥] Stop command received")
+                self.command_active = False
+                
+            else:
+                print(f"[⚠] Unknown command: {command}")
+                
+        except json.JSONDecodeError as e:
+            print(f"[✗] Invalid command JSON: {e}")
+        except Exception as e:
+            print(f"[✗] Error processing command: {e}")
         
     def connect(self):
         """Connect to MQTT broker"""
@@ -203,6 +258,11 @@ Examples:
     parser.add_argument('--ssh-port', type=int, default=2222, help='SSH port (default: 2222)')
     parser.add_argument('--ssh-user', default='root', help='SSH username (default: root)')
     
+    # Command listening mode
+    parser.add_argument('--listen', action='store_true', help='Listen for commands from IoT device')
+    parser.add_argument('--sensor-id', help='Unique sensor ID (default: sensor type)')
+    parser.add_argument('--daemon', action='store_true', help='Run in background (daemon mode)')
+    
     # Single reading or simulation
     parser.add_argument('--value', type=float, help='Single sensor value to send')
     parser.add_argument('--simulate', action='store_true', help='Enable continuous simulation')
@@ -214,8 +274,8 @@ Examples:
     args = parser.parse_args()
     
     # Validate arguments
-    if not args.simulate and args.value is None:
-        parser.error('Either --value for single reading or --simulate for continuous simulation is required')
+    if not args.listen and not args.simulate and args.value is None:
+        parser.error('Either --value for single reading, --simulate for continuous simulation, or --listen for command mode is required')
         
     if args.simulate and args.base is None:
         parser.error('--base is required when using --simulate')
@@ -224,12 +284,14 @@ Examples:
     simulator = SensorSimulator(
         args.broker, 
         args.port, 
-        args.sensor, 
-        args.topic_prefix,
+        args.sensor,
+        sensor_id=args.sensor_id,
+        topic_prefix=args.topic_prefix,
         ssh_tunnel=args.ssh_tunnel,
         ssh_host=args.ssh_host,
         ssh_port=args.ssh_port,
-        ssh_user=args.ssh_user
+        ssh_user=args.ssh_user,
+        listen_commands=args.listen
     )
     
     try:
@@ -241,13 +303,33 @@ Examples:
             print(f"Broker (via tunnel): {args.broker}:{args.port}")
         else:
             print(f"Broker: {args.broker}:{args.port}")
-        print(f"Sensor: {args.sensor}")
+        print(f"Sensor: {args.sensor} (ID: {simulator.sensor_id})")
         print(f"Topic: {args.topic_prefix}/{args.sensor}")
+        if args.listen:
+            print(f"Command Mode: Listening on commands/{simulator.sensor_id}")
         print(f"{'='*60}\n")
         
         simulator.connect()
         
-        if args.simulate:
+        if args.listen:
+            # Command listening mode - keep running until interrupted
+            if args.daemon:
+                print("[🎧] Running in daemon mode (background)")
+                print(f"     PID: {os.getpid()}")
+                print(f"     Listening on: commands/{simulator.sensor_id}")
+                print("[ℹ] To stop: kill {os.getpid()}\n")
+            else:
+                print("[🎧] Listening for commands... (Press Ctrl+C to stop)\n")
+            
+            sys.stdout.flush()
+            
+            try:
+                while True:
+                    time.sleep(0.1)
+            except KeyboardInterrupt:
+                print("\n[⊥] Stopped by user")
+                sys.stdout.flush()
+        elif args.simulate:
             simulator.simulate_continuous(args.duration, args.interval, args.base, args.variance)
         else:
             simulator.send_sensor_data(args.value)

@@ -36,19 +36,112 @@ python3 sensor_simulator.py --broker localhost --port 1883 --sensor temperature 
 sqlite3 /usr/local/bin/iot_data.db "SELECT * FROM sensor_readings"
 
 //===========================================================================================
-// VENV SETUP
-# 1. Kloniraj repozitorij
-git clone https://github.com/RFilipovic/dipl-projekt.git
+// SETUP ZA NOVI RAČUNAR
+
+# 1. Kloniraj repozitorij SA submodulima
+git clone --recurse-submodules https://github.com/RFilipovic/dipl-projekt.git
 cd dipl-projekt
 
-# 2. Kreiraj virtuelni environment
+# 2. Ako si već klonirao bez --recurse-submodules, pokreni:
+git submodule update --init --recursive
+
+# 3. Kreiraj virtuelni environment za sensor simulator
 python3 -m venv .venv
-
-# 3. Aktiviraj virtuelni environment
 source .venv/bin/activate
-
-# 4. Instaliraj Python pakete
 pip install paho-mqtt
 
-# 5. Instaliraj mosquitto-clients (za testiranje sa komandnom linijom)
+# 4. Instaliraj mosquitto-clients (za testiranje)
 sudo apt-get install mosquitto-clients
+
+# 5. Inicijaliziraj build environment
+source oe-init-build-env
+
+# 6. Build image (prvi put će trajati 1-3 sata)
+bitbake diplomski-image
+
+//===========================================================================================
+// POKRETANJE - BIDIREKCIONA KOMUNIKACIJA
+
+# Terminal 1: Pokreni QEMU
+source oe-init-build-env
+runqemu qemux86-64 nographic kvm slirp qemuparams="-net nic,model=e1000 -net user,hostfwd=tcp::18830-:1883"
+
+# Terminal 2: Pokreni senzor u BACKGROUND modu (ostaje terminal slobodan)
+cd /home/rene/Documents/projekt-dipl/dipl-projekt
+source .venv/bin/activate
+
+# Pokreni senzor u pozadini
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --sensor-id temp1 --listen --daemon &
+
+# Možeš pokrenuti više senzora:
+python3 sensor_simulator.py --ssh-tunnel --sensor humidity --sensor-id hum1 --listen --daemon &
+
+# Vidi running senzore:
+ps aux | grep sensor_simulator
+
+# Zaustavi senzor:
+kill <PID>
+
+# Terminal 3 (QEMU): Prati logove I šalji komande
+ssh root@localhost -p 2222
+
+# Prati logove u pozadini:
+journalctl -u data-collector -f &
+
+# Šalji komande DIREKTNO sa IoT uređaja:
+command_sender.py --sensor-id temp1 --command measure --count 10 --interval 1 --base 25 --variance 5
+
+# Ili broadcast svim senzorima:
+command_sender.py --sensor-id all --command measure --count 20 --interval 0.5
+
+# Provjeri bazu:
+sqlite3 /usr/local/bin/iot_data.db "SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 20"
+
+//===========================================================================================
+// ALTERNATIVA: Foreground mod (terminal zauzet, vidiš output)
+
+# Terminal 1: Pokreni QEMU
+source oe-init-build-env
+runqemu qemux86-64 nographic kvm slirp qemuparams="-net nic,model=e1000 -net user,hostfwd=tcp::18830-:1883"
+
+# Terminal 2: Prati logove
+ssh root@localhost -p 2222
+journalctl -u data-collector -f
+
+# Terminal 3: Pokreni senzor (BEZ --daemon, vidiš sve poruke)
+cd /home/rene/Documents/projekt-dipl/dipl-projekt
+source .venv/bin/activate
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --sensor-id temp1 --listen
+
+# Terminal 4: Šalji komande sa hosta (preko SSH tunela)
+cd /home/rene/Documents/projekt-dipl/dipl-projekt
+source .venv/bin/activate
+python3 command_sender.py --ssh-tunnel --sensor-id temp1 --command measure --count 10
+
+//===========================================================================================
+// STARI NAČIN (Direktno slanje bez komandi)
+
+# OPCIJA 1: Jedna temperatura sa SSH tunnelom
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --value 25.5
+
+# OPCIJA 2: Kontinuirana simulacija
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --simulate --duration 10 --interval 1 --base 25 --variance 3
+
+# OPCIJA 3: Više senzora istovremeno
+python3 sensor_simulator.py --ssh-tunnel --sensor temperature --simulate --duration 30 --interval 2 --base 25 --variance 5
+python3 sensor_simulator.py --ssh-tunnel --sensor humidity --simulate --duration 30 --interval 2 --base 55 --variance 10
+
+//===========================================================================================
+// PROVJERA PODATAKA
+
+# SSH u QEMU
+ssh root@localhost -p 2222
+
+# Provjeri bazu podataka
+sqlite3 /usr/local/bin/iot_data.db "SELECT * FROM sensor_readings ORDER BY id DESC LIMIT 20"
+
+# Provjeri status servisa
+systemctl status data-collector
+
+# Prati logove
+journalctl -u data-collector -f
